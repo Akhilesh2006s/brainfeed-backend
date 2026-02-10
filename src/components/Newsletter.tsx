@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
+import ScrollReveal from "./ScrollReveal";
 
 const Newsletter = () => {
   const [email, setEmail] = useState("");
@@ -11,12 +12,7 @@ const Newsletter = () => {
       <div className="absolute bottom-0 left-0 w-64 h-64 bg-accent/5 rounded-full translate-y-1/2 -translate-x-1/2" />
 
       <div className="container text-center relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6 }}
-        >
+        <ScrollReveal direction="up">
           <span className="text-accent text-[11px] font-semibold uppercase tracking-widest">Stay Informed</span>
           <h2 className="font-serif text-3xl lg:text-4xl text-primary-foreground mt-3">
             Get the Free Newsletter
@@ -24,7 +20,7 @@ const Newsletter = () => {
           <p className="mt-4 text-primary-foreground/60 max-w-md mx-auto font-sans leading-relaxed">
             Subscribe to Brainfeed Magazine for curated news, expert insights, and the latest in education.
           </p>
-        </motion.div>
+        </ScrollReveal>
         <motion.form
           className="mt-10 flex flex-col sm:flex-row gap-3 max-w-lg mx-auto"
           onSubmit={(e) => e.preventDefault()}

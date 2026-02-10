@@ -1,10 +1,12 @@
-import { motion } from "framer-motion";
-import ArticleCard from "./ArticleCard";
+import ScrollReveal from "./ScrollReveal";
 
 interface CategoryArticle {
   image: string;
   title: string;
   date: string;
+  tag?: string;
+  author?: string;
+  readTime?: string;
 }
 
 interface CategorySectionProps {
@@ -18,53 +20,80 @@ const CategorySection = ({ title, articles }: CategorySectionProps) => {
   const [featured, ...rest] = articles;
 
   return (
-    <section className="py-14 lg:py-16">
+    <section className="py-12 md:py-14 lg:py-16">
       <div className="container">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-        >
+        <ScrollReveal direction="up">
           <h2 className="section-title">{title}</h2>
-        </motion.div>
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 mt-10">
-          <div className="lg:col-span-3">
-            <ArticleCard
-              image={featured.image}
-              category={title}
-              title={featured.title}
-              date={featured.date}
-              size="large"
-            />
-          </div>
+        </ScrollReveal>
 
-          <div className="lg:col-span-2 flex flex-col gap-6">
-            {rest.map((article, i) => (
-              <motion.article
-                key={i}
-                className="article-card group flex gap-5"
-                initial={{ opacity: 0, x: 20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1, duration: 0.4 }}
-              >
-                <div className="overflow-hidden rounded-lg flex-shrink-0">
-                  <img
-                    src={article.image}
-                    alt={article.title}
-                    className="w-32 h-24 object-cover transition-transform duration-700 group-hover:scale-105"
-                    loading="lazy"
-                  />
+        <div className="mt-8 md:mt-10 grid grid-cols-1 lg:grid-cols-[3fr,2fr] gap-8 md:gap-10">
+          {/* Featured story with image */}
+          <ScrollReveal direction="up">
+            <article className="glass-card overflow-hidden flex flex-col h-full">
+              <div className="relative">
+                <img
+                  src={featured.image}
+                  alt={featured.title}
+                  className="w-full h-56 md:h-64 object-cover"
+                  loading="lazy"
+                />
+              </div>
+              <div className="p-5 md:p-6 flex flex-col gap-3">
+                <span className="inline-flex items-center px-3 py-1 rounded-full bg-sky-100 text-sky-800 text-[11px] font-semibold uppercase tracking-[0.18em]">
+                  {featured.tag ?? title}
+                </span>
+                <h3 className="font-serif text-xl md:text-2xl text-foreground leading-snug">
+                  {featured.title}
+                </h3>
+                <div className="mt-1 flex items-center gap-4 text-[11px] text-muted-foreground/80 font-sans flex-wrap">
+                  {featured.author && <span>{featured.author}</span>}
+                  <span className="h-1 w-1 rounded-full bg-muted-foreground/40" />
+                  <span>{featured.date}</span>
+                  {featured.readTime && (
+                    <>
+                      <span className="h-1 w-1 rounded-full bg-muted-foreground/40" />
+                      <span>{featured.readTime}</span>
+                    </>
+                  )}
                 </div>
-                <div className="flex flex-col justify-center">
-                  <span className="category-badge">{title}</span>
-                  <h4 className="font-serif text-[15px] text-foreground leading-snug mt-1.5 hover:text-accent transition-colors duration-300 line-clamp-2">
-                    {article.title}
-                  </h4>
-                  <time className="mt-2 text-xs text-muted-foreground/70 font-sans tracking-wide">{article.date}</time>
-                </div>
-              </motion.article>
+              </div>
+            </article>
+          </ScrollReveal>
+
+          {/* Side list of other stories */}
+          <div className="flex flex-col gap-4 md:gap-5">
+            {rest.map((article, index) => (
+              <ScrollReveal key={article.title} delay={0.05 * index} direction="up">
+                <article className="glass-card flex gap-3 md:gap-4 p-3 md:p-4">
+                  <div className="hidden sm:block w-24 md:w-28 flex-shrink-0 overflow-hidden rounded-lg">
+                    <img
+                      src={article.image}
+                      alt={article.title}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 text-[10px] font-semibold uppercase tracking-[0.16em]">
+                      {article.tag ?? title}
+                    </span>
+                    <h4 className="font-serif text-[15px] md:text-[16px] text-foreground leading-snug line-clamp-2">
+                      {article.title}
+                    </h4>
+                    <div className="mt-1 flex items-center gap-3 text-[11px] text-muted-foreground/80 font-sans flex-wrap">
+                      {article.author && <span>{article.author}</span>}
+                      <span className="h-1 w-1 rounded-full bg-muted-foreground/40" />
+                      <span>{article.date}</span>
+                      {article.readTime && (
+                        <>
+                          <span className="h-1 w-1 rounded-full bg-muted-foreground/40" />
+                          <span>{article.readTime}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              </ScrollReveal>
             ))}
           </div>
         </div>
