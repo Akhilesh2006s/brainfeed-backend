@@ -6,23 +6,23 @@ const Newsletter = () => {
   const [email, setEmail] = useState("");
 
   return (
-    <section className="py-20 bg-primary relative overflow-hidden">
+    <section className="py-12 sm:py-16 md:py-20 bg-primary relative overflow-hidden">
       {/* Decorative circles */}
       <div className="absolute top-0 right-0 w-96 h-96 bg-accent/5 rounded-full -translate-y-1/2 translate-x-1/2" />
       <div className="absolute bottom-0 left-0 w-64 h-64 bg-accent/5 rounded-full translate-y-1/2 -translate-x-1/2" />
 
       <div className="container text-center relative z-10">
         <ScrollReveal direction="up">
-          <span className="text-accent text-[11px] font-semibold uppercase tracking-widest">Stay Informed</span>
-          <h2 className="font-serif text-3xl lg:text-4xl text-primary-foreground mt-3">
+          <span className="text-accent text-[10px] sm:text-[11px] font-semibold uppercase tracking-widest">Stay Informed</span>
+          <h2 className="font-serif text-2xl sm:text-3xl lg:text-4xl text-primary-foreground mt-3">
             Get the Free Newsletter
           </h2>
-          <p className="mt-4 text-primary-foreground/60 max-w-md mx-auto font-sans leading-relaxed">
+          <p className="mt-3 sm:mt-4 text-[13px] sm:text-base text-primary-foreground/60 max-w-md mx-auto font-sans leading-relaxed px-1">
             Subscribe to Brainfeed Magazine for curated news, expert insights, and the latest in education.
           </p>
         </ScrollReveal>
         <motion.form
-          className="mt-10 flex flex-col sm:flex-row gap-3 max-w-lg mx-auto"
+          className="mt-8 sm:mt-10 flex flex-col sm:flex-row gap-3 max-w-lg mx-auto"
           onSubmit={(e) => e.preventDefault()}
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -34,11 +34,11 @@ const Newsletter = () => {
             placeholder="Enter your email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="flex-1 px-5 py-3.5 text-sm bg-primary-foreground/10 border border-primary-foreground/15 text-primary-foreground placeholder:text-primary-foreground/35 focus:outline-none focus:border-accent rounded-full font-sans transition-colors"
+            className="flex-1 min-h-[48px] px-4 sm:px-5 py-3.5 text-sm bg-primary-foreground/10 border border-primary-foreground/15 text-primary-foreground placeholder:text-primary-foreground/35 focus:outline-none focus:border-accent rounded-full font-sans transition-colors"
           />
           <motion.button
             type="submit"
-            className="px-8 py-3.5 bg-accent text-accent-foreground text-xs font-semibold uppercase tracking-widest rounded-full hover:bg-accent/90 transition-colors"
+            className="min-h-[48px] px-8 py-3.5 bg-accent text-accent-foreground text-xs font-semibold uppercase tracking-widest rounded-full hover:bg-accent/90 transition-colors"
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97 }}
           >

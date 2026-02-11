@@ -51,7 +51,7 @@ const magazines: Magazine[] = [
 
 const MagazineSection = () => {
   return (
-    <section className="py-14 md:py-18 lg:py-24 bg-secondary/60">
+    <section className="py-10 sm:py-12 md:py-16 lg:py-24 bg-secondary/60">
       <div className="container">
         <ScrollReveal
           direction="up"
@@ -59,7 +59,7 @@ const MagazineSection = () => {
         >
           <div>
             <h2 className="section-title">Latest Magazines</h2>
-            <p className="mt-4 max-w-xl text-sm md:text-base text-muted-foreground font-sans leading-relaxed">
+            <p className="mt-3 sm:mt-4 max-w-xl text-[13px] sm:text-sm md:text-base text-muted-foreground font-sans leading-relaxed">
               A curated family of editions for educators, parents and learners – each
               crafted with rich storytelling, research-led features and joyful design.
             </p>
@@ -69,7 +69,7 @@ const MagazineSection = () => {
           </p>
         </ScrollReveal>
 
-        <div className="mt-8 md:mt-10 lg:mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 lg:gap-8">
+        <div className="mt-6 sm:mt-8 md:mt-10 lg:mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
           {magazines.map((magazine, index) => (
             <ScrollReveal
               key={magazine.id}
@@ -87,7 +87,7 @@ const MagazineSection = () => {
                 />
               </div>
 
-              <div className="px-4 pt-4 pb-5 flex-1 flex flex-col">
+              <div className="px-3 sm:px-4 pt-3 sm:pt-4 pb-4 sm:pb-5 flex-1 flex flex-col">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-accent mb-1">
                   Latest Issue
                 </p>

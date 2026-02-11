@@ -22,9 +22,9 @@ const Header = () => {
       transition={{ duration: 0.5, delay: 0.2 }}
       className="bg-card/95 backdrop-blur-lg border-b border-border/60 sticky top-0 z-50"
     >
-      <div className="container flex items-center justify-between py-5">
-        <a href="#" className="flex-shrink-0">
-          <img src={logo} alt="Brainfeed Magazine" className="h-11" />
+      <div className="container flex items-center justify-between py-3.5 sm:py-4 md:py-5">
+        <a href="#" className="flex-shrink-0 min-h-[44px] flex items-center">
+          <img src={logo} alt="Brainfeed Magazine" className="h-9 sm:h-10 md:h-11 w-auto" />
         </a>
 
         <nav className="hidden lg:flex items-center gap-10">
@@ -58,7 +58,9 @@ const Header = () => {
             Subscribe
           </motion.a>
           <button
-            className="lg:hidden text-foreground"
+            type="button"
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            className="lg:hidden text-foreground p-2 -mr-2 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation"
             onClick={() => setMobileOpen(!mobileOpen)}
           >
             {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -75,12 +77,12 @@ const Header = () => {
             transition={{ duration: 0.3 }}
             className="lg:hidden border-t border-border/60 bg-card overflow-hidden"
           >
-            <div className="container py-6 flex flex-col gap-1">
+            <div className="container py-4 sm:py-5 flex flex-col gap-0">
               {navItems.map((item, i) => (
                 <motion.a
                   key={item.label}
                   href={item.href}
-                  className="text-sm font-medium text-foreground/70 hover:text-accent transition-colors py-3 border-b border-border/30 last:border-0"
+                  className="text-sm font-medium text-foreground/70 hover:text-accent transition-colors py-3.5 sm:py-3 min-h-[48px] flex items-center border-b border-border/30 last:border-0 touch-manipulation"
                   initial={{ x: -20, opacity: 0 }}
                   animate={{ x: 0, opacity: 1 }}
                   transition={{ delay: i * 0.05 }}

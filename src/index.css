@@ -91,17 +91,18 @@
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-foreground antialiased overflow-x-hidden;
     /* Subtle editorial-style backdrop for a richer, more modern feel */
     background-image:
       radial-gradient(circle at top left, hsl(var(--accent) / 0.12), transparent 55%),
       radial-gradient(circle at bottom right, hsl(var(--navy) / 0.12), transparent 55%);
     background-attachment: fixed;
-  }
-
-  html {
-    scroll-behavior: smooth;
   }
 
   h1, h2, h3, h4, h5, h6 {
@@ -111,7 +112,7 @@
 
 @layer components {
   .section-title {
-    @apply font-serif text-3xl font-normal text-foreground mb-8 relative inline-block;
+    @apply font-serif text-2xl sm:text-[1.75rem] md:text-3xl font-normal text-foreground mb-6 md:mb-8 relative inline-block;
   }
 
   .section-title::after {

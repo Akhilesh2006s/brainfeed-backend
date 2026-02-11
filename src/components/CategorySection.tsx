@@ -20,13 +20,13 @@ const CategorySection = ({ title, articles }: CategorySectionProps) => {
   const [featured, ...rest] = articles;
 
   return (
-    <section className="py-12 md:py-14 lg:py-16">
+    <section className="py-10 sm:py-12 md:py-14 lg:py-16">
       <div className="container">
         <ScrollReveal direction="up">
           <h2 className="section-title">{title}</h2>
         </ScrollReveal>
 
-        <div className="mt-8 md:mt-10 grid grid-cols-1 lg:grid-cols-[3fr,2fr] gap-8 md:gap-10">
+        <div className="mt-6 sm:mt-8 md:mt-10 grid grid-cols-1 lg:grid-cols-[3fr,2fr] gap-6 sm:gap-8 md:gap-10">
           {/* Featured story with image */}
           <ScrollReveal direction="up">
             <article className="glass-card overflow-hidden flex flex-col h-full">
@@ -34,15 +34,15 @@ const CategorySection = ({ title, articles }: CategorySectionProps) => {
                 <img
                   src={featured.image}
                   alt={featured.title}
-                  className="w-full h-56 md:h-64 object-cover"
+                  className="w-full h-52 sm:h-56 md:h-64 object-cover"
                   loading="lazy"
                 />
               </div>
-              <div className="p-5 md:p-6 flex flex-col gap-3">
+              <div className="p-4 sm:p-5 md:p-6 flex flex-col gap-3">
                 <span className="inline-flex items-center px-3 py-1 rounded-full bg-sky-100 text-sky-800 text-[11px] font-semibold uppercase tracking-[0.18em]">
                   {featured.tag ?? title}
                 </span>
-                <h3 className="font-serif text-xl md:text-2xl text-foreground leading-snug">
+                <h3 className="font-serif text-lg sm:text-xl md:text-2xl text-foreground leading-snug">
                   {featured.title}
                 </h3>
                 <div className="mt-1 flex items-center gap-4 text-[11px] text-muted-foreground/80 font-sans flex-wrap">
@@ -61,10 +61,10 @@ const CategorySection = ({ title, articles }: CategorySectionProps) => {
           </ScrollReveal>
 
           {/* Side list of other stories */}
-          <div className="flex flex-col gap-4 md:gap-5">
+          <div className="flex flex-col gap-3 sm:gap-4 md:gap-5">
             {rest.map((article, index) => (
               <ScrollReveal key={article.title} delay={0.05 * index} direction="up">
-                <article className="glass-card flex gap-3 md:gap-4 p-3 md:p-4">
+                <article className="glass-card flex gap-3 md:gap-4 p-3 sm:p-3.5 md:p-4 min-h-[72px] sm:min-h-0">
                   <div className="hidden sm:block w-24 md:w-28 flex-shrink-0 overflow-hidden rounded-lg">
                     <img
                       src={article.image}
