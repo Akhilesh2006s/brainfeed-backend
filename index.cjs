@@ -13,6 +13,8 @@ const User = require("./models/User.cjs");
 const Admin = require("./models/Admin.cjs");
 const Post = require("./models/Post.cjs");
 const Page = require("./models/Page.cjs");
+const Subscription = require("./models/Subscription.cjs");
+const Product = require("./models/Product.cjs");
 
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || "brainfeed-jwt-secret-change-in-production";
@@ -46,6 +48,11 @@ const uploadPostMedia = multer({
   storage,
   limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter: mediaFilter,
+});
+const uploadProductImage = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: imageFilter,
 });
 
 function readArticles() {
@@ -202,18 +209,55 @@ function authMiddleware(req, res, next) {
   }
 }
 
-function adminAuthMiddleware(req, res, next) {
+async function adminAuthMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
   if (!token) return res.status(401).json({ error: "Admin authentication required" });
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     if (!decoded.adminId) return res.status(403).json({ error: "Not an admin" });
-    req.adminId = decoded.adminId;
+
+    const admin = await Admin.findById(decoded.adminId);
+    if (!admin) return res.status(403).json({ error: "Admin not found" });
+
+    const adminEnvEmail = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+    const isEnvAdminUser = adminEnvEmail && admin.email === adminEnvEmail;
+
+    // Compute role from the database, forcing ENV admin to be full "admin"
+    let role = admin.role;
+    if (isEnvAdminUser) {
+      if (admin.role !== "admin") {
+        admin.role = "admin";
+        await admin.save();
+      }
+      role = "admin";
+    } else {
+      role = role || "editor";
+      if (!admin.role) {
+        admin.role = role;
+        await admin.save();
+      }
+    }
+
+    req.adminId = admin._id.toString();
+    req.adminRole = role;
     next();
-  } catch {
+  } catch (e) {
+    console.error("Admin auth error:", e);
     return res.status(401).json({ error: "Invalid or expired token" });
   }
+}
+
+const ADMIN_ROLES = ["admin", "editor"];
+
+function requireAdminRole(requiredRole) {
+  return (req, res, next) => {
+    const role = req.adminRole || "admin";
+    if (role !== requiredRole) {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+    next();
+  };
 }
 
 async function uploadToCloudinary(buffer, mimeType, folder) {
@@ -318,9 +362,10 @@ app.post("/api/admin/login", async (req, res) => {
 
     let admin = await Admin.findOne({ email: adminEmail });
     if (!admin) {
+      // First-time login using ENV admin credentials creates a permanent admin user
       if (adminEnvEmail && adminEnvPassword && adminEnvEmail === adminEmail) {
         const hashed = await bcrypt.hash(adminEnvPassword, 10);
-        admin = await Admin.create({ email: adminEnvEmail, password: hashed });
+        admin = await Admin.create({ email: adminEnvEmail, password: hashed, role: "admin" });
       } else {
         return res.status(401).json({ error: "Invalid email or password" });
       }
@@ -332,7 +377,25 @@ app.post("/api/admin/login", async (req, res) => {
       match = true;
     }
     if (!match) return res.status(401).json({ error: "Invalid email or password" });
-    const token = jwt.sign({ adminId: admin._id.toString() }, JWT_SECRET, { expiresIn: "7d" });
+
+    // Ensure ENV admin always has full "admin" role, even if previously saved as "editor"
+    const isEnvAdminUser = adminEnvEmail && admin.email === adminEnvEmail;
+    let role = admin.role;
+    if (isEnvAdminUser) {
+      role = "admin";
+      if (admin.role !== "admin") {
+        admin.role = "admin";
+        await admin.save();
+      }
+    } else {
+      role = role || "editor";
+      if (!admin.role) {
+        admin.role = role;
+        await admin.save();
+      }
+    }
+
+    const token = jwt.sign({ adminId: admin._id.toString(), role }, JWT_SECRET, { expiresIn: "7d" });
     res.json({ admin: admin.toJSON(), token });
   } catch (e) {
     console.error("Admin login error:", e);
@@ -347,6 +410,404 @@ app.get("/api/admin/me", adminAuthMiddleware, async (req, res) => {
     res.json(admin);
   } catch (e) {
     res.status(500).json({ error: e.message || "Failed to get admin" });
+  }
+});
+
+// ----- Admin user management (roles: admin, editor) -----
+app.get("/api/admin/users", adminAuthMiddleware, requireAdminRole("admin"), async (req, res) => {
+  try {
+    const admins = await Admin.find().sort({ createdAt: -1 }).select("-password");
+    res.json(admins);
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to load users" });
+  }
+});
+
+app.post("/api/admin/users", adminAuthMiddleware, requireAdminRole("admin"), async (req, res) => {
+  try {
+    const { email, password, role } = req.body || {};
+    const trimmedEmail = String(email || "").trim().toLowerCase();
+    const trimmedPassword = String(password || "");
+    const trimmedRole = String(role || "editor").trim();
+    if (!trimmedEmail || !trimmedPassword) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+    if (!ADMIN_ROLES.includes(trimmedRole)) {
+      return res.status(400).json({ error: "Invalid role" });
+    }
+    if (trimmedPassword.length < 6) {
+      return res.status(400).json({ error: "Password must be at least 6 characters" });
+    }
+    const existing = await Admin.findOne({ email: trimmedEmail });
+    if (existing) {
+      return res.status(409).json({ error: "User with this email already exists" });
+    }
+    const hashed = await bcrypt.hash(trimmedPassword, 10);
+    const admin = await Admin.create({ email: trimmedEmail, password: hashed, role: trimmedRole });
+    res.status(201).json(admin.toJSON());
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to create user" });
+  }
+});
+
+app.patch("/api/admin/users/:id", adminAuthMiddleware, requireAdminRole("admin"), async (req, res) => {
+  try {
+    const { email, password, role } = req.body || {};
+    const update = {};
+    if (email !== undefined) {
+      const trimmedEmail = String(email).trim().toLowerCase();
+      if (!trimmedEmail) {
+        return res.status(400).json({ error: "Email cannot be empty" });
+      }
+      update.email = trimmedEmail;
+    }
+    if (role !== undefined) {
+      const trimmedRole = String(role).trim();
+      if (!ADMIN_ROLES.includes(trimmedRole)) {
+        return res.status(400).json({ error: "Invalid role" });
+      }
+      update.role = trimmedRole;
+    }
+    if (password !== undefined) {
+      const trimmedPassword = String(password);
+      if (trimmedPassword && trimmedPassword.length < 6) {
+        return res.status(400).json({ error: "Password must be at least 6 characters" });
+      }
+      if (trimmedPassword) {
+        update.password = await bcrypt.hash(trimmedPassword, 10);
+      }
+    }
+    const admin = await Admin.findByIdAndUpdate(req.params.id, update, {
+      new: true,
+      runValidators: true,
+    }).select("-password");
+    if (!admin) return res.status(404).json({ error: "User not found" });
+    res.json(admin);
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to update user" });
+  }
+});
+
+app.delete("/api/admin/users/:id", adminAuthMiddleware, requireAdminRole("admin"), async (req, res) => {
+  try {
+    const targetId = req.params.id;
+    if (targetId === req.adminId) {
+      return res.status(400).json({ error: "You cannot delete your own admin account" });
+    }
+    const target = await Admin.findById(targetId);
+    if (!target) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    if (target.role === "admin") {
+      const adminCount = await Admin.countDocuments({ role: "admin" });
+      if (adminCount <= 1) {
+        return res.status(400).json({ error: "Cannot delete the last admin user" });
+      }
+    }
+    await Admin.findByIdAndDelete(targetId);
+    res.json({ deleted: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to delete user" });
+  }
+});
+
+// ----- Products (subscription packs & magazines for Subscribe page) -----
+const PRODUCT_CATEGORIES = ["pre-primary", "library", "classroom", "magazine"];
+
+function slugifyProduct(text) {
+  return String(text || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "") || "product";
+}
+
+// Public products endpoint used by frontend Subscribe page
+app.get("/api/products", async (req, res) => {
+  try {
+    const category = (req.query.category || "").trim();
+    const filter = { active: true };
+    if (category && PRODUCT_CATEGORIES.includes(category)) {
+      filter.category = category;
+    }
+    const products = await Product.find(filter).sort({ category: 1, order: 1, createdAt: -1 }).lean();
+    res.json(
+      products.map((p) => ({
+        id: p._id.toString(),
+        category: p.category,
+        name: p.name,
+        slug: p.slug,
+        description: p.description,
+        badge: p.badge,
+        tag: p.tag,
+        oldPrice: p.oldPrice,
+        price: p.price,
+        currency: p.currency,
+        imageUrl: p.imageUrl,
+        order: p.order,
+      }))
+    );
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to load products" });
+  }
+});
+
+// Admin products CRUD
+app.get("/api/admin/products", adminAuthMiddleware, requireAdminRole("admin"), async (req, res) => {
+  try {
+    let products = await Product.find().sort({ category: 1, order: 1, createdAt: -1 }).lean();
+
+    // If there are no products yet, seed a sensible default set so the admin
+    // immediately sees editable items that match the Subscribe page structure.
+    if (!products.length) {
+      const seed = [
+        {
+          category: "pre-primary",
+          name: "Pre Primary Combo Pack",
+          description: "Annual subscription bundle designed for early-years classrooms.",
+          badge: "Popular",
+          tag: "Pre Primary Packs",
+          price: 4500,
+          oldPrice: 5200,
+          currency: "INR",
+          imageUrl: "",
+          active: true,
+          order: 1,
+        },
+        {
+          category: "library",
+          name: "School Library Pack",
+          description: "Curated magazines set for school libraries.",
+          badge: "Best value",
+          tag: "Library Packs",
+          price: 7500,
+          oldPrice: 8900,
+          currency: "INR",
+          imageUrl: "",
+          active: true,
+          order: 1,
+        },
+        {
+          category: "classroom",
+          name: "Classroom Engagement Pack",
+          description: "Bulk magazines for active classroom sessions.",
+          badge: "",
+          tag: "Classroom Packs",
+          price: 6800,
+          oldPrice: 7800,
+          currency: "INR",
+          imageUrl: "",
+          active: true,
+          order: 1,
+        },
+        {
+          category: "magazine",
+          name: "Brainfeed Magazine – Annual",
+          description: "Annual subscription to Brainfeed Magazine.",
+          badge: "New",
+          tag: "Magazines",
+          price: 1800,
+          oldPrice: 2200,
+          currency: "INR",
+          imageUrl: "",
+          active: true,
+          order: 1,
+        },
+      ].map((p) => ({
+        ...p,
+        slug: slugifyProduct(p.name),
+      }));
+
+      await Product.insertMany(seed);
+      products = await Product.find().sort({ category: 1, order: 1, createdAt: -1 }).lean();
+    }
+
+    res.json(products);
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to load products" });
+  }
+});
+
+app.get("/api/admin/products/:id", adminAuthMiddleware, requireAdminRole("admin"), async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id).lean();
+    if (!product) return res.status(404).json({ error: "Product not found" });
+    res.json(product);
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to load product" });
+  }
+});
+
+app.post(
+  "/api/admin/products",
+  adminAuthMiddleware,
+  requireAdminRole("admin"),
+  uploadProductImage.single("image"),
+  async (req, res) => {
+    try {
+      const body = req.body || {};
+      const category = String(body.category || "").trim();
+      const name = String(body.name || "").trim();
+      if (!category || !PRODUCT_CATEGORIES.includes(category)) {
+        return res.status(400).json({ error: "Invalid category" });
+      }
+      if (!name) return res.status(400).json({ error: "Name is required" });
+      const slug = slugifyProduct(body.slug || name);
+      const price = Number(body.price) || 0;
+      if (!price) return res.status(400).json({ error: "Price is required" });
+      const oldPrice = Number(body.oldPrice) || 0;
+      let imageUrl = String(body.imageUrl || "").trim();
+      if (req.file) {
+        const r = await uploadToCloudinary(req.file.buffer, req.file.mimetype, "brainfeed-products");
+        imageUrl = r.secure_url;
+      }
+      const product = await Product.create({
+        category,
+        name,
+        slug,
+        description: String(body.description || "").trim(),
+        badge: String(body.badge || "").trim(),
+        tag: String(body.tag || "").trim(),
+        price,
+        oldPrice,
+        currency: String(body.currency || "INR").trim() || "INR",
+        imageUrl,
+        active: body.active !== "false",
+        order: Number(body.order) || 0,
+      });
+      res.status(201).json(product.toJSON());
+    } catch (e) {
+      res.status(500).json({ error: e.message || "Failed to create product" });
+    }
+  }
+);
+
+app.patch(
+  "/api/admin/products/:id",
+  adminAuthMiddleware,
+  requireAdminRole("admin"),
+  uploadProductImage.single("image"),
+  async (req, res) => {
+    try {
+      const body = req.body || {};
+      const update = {};
+      if (body.category !== undefined) {
+        const category = String(body.category || "").trim();
+        if (!PRODUCT_CATEGORIES.includes(category)) {
+          return res.status(400).json({ error: "Invalid category" });
+        }
+        update.category = category;
+      }
+      if (body.name !== undefined) update.name = String(body.name || "").trim();
+      if (body.slug !== undefined) {
+        const raw = String(body.slug || "").trim();
+        update.slug = slugifyProduct(raw || update.name);
+      }
+      if (body.description !== undefined) update.description = String(body.description || "").trim();
+      if (body.badge !== undefined) update.badge = String(body.badge || "").trim();
+      if (body.tag !== undefined) update.tag = String(body.tag || "").trim();
+      if (body.price !== undefined) update.price = Number(body.price) || 0;
+      if (body.oldPrice !== undefined) update.oldPrice = Number(body.oldPrice) || 0;
+      if (body.currency !== undefined) update.currency = String(body.currency || "INR").trim() || "INR";
+      if (body.active !== undefined) update.active = body.active !== "false";
+      if (body.order !== undefined) update.order = Number(body.order) || 0;
+      if (req.file) {
+        const r = await uploadToCloudinary(req.file.buffer, req.file.mimetype, "brainfeed-products");
+        update.imageUrl = r.secure_url;
+      } else if (body.imageUrl !== undefined) {
+        update.imageUrl = String(body.imageUrl || "").trim();
+      }
+      const product = await Product.findByIdAndUpdate(req.params.id, update, {
+        new: true,
+        runValidators: true,
+      }).lean();
+      if (!product) return res.status(404).json({ error: "Product not found" });
+      res.json(product);
+    } catch (e) {
+      res.status(500).json({ error: e.message || "Failed to update product" });
+    }
+  }
+);
+
+app.delete(
+  "/api/admin/products/:id",
+  adminAuthMiddleware,
+  requireAdminRole("admin"),
+  async (req, res) => {
+    try {
+      const product = await Product.findByIdAndDelete(req.params.id);
+      if (!product) return res.status(404).json({ error: "Product not found" });
+      res.json({ deleted: true });
+    } catch (e) {
+      res.status(500).json({ error: e.message || "Failed to delete product" });
+    }
+  }
+);
+
+// ----- Admin subscriptions overview (for dashboard) -----
+app.get("/api/admin/subscriptions", adminAuthMiddleware, async (req, res) => {
+  try {
+    const status = (req.query.status || "").trim();
+    const filter = status ? { status } : {};
+    const subs = await Subscription.find(filter).sort({ createdAt: -1 }).lean();
+    res.json(
+      subs.map((s) => ({
+        id: s._id.toString(),
+        userName: s.userName,
+        email: s.email,
+        source: s.source,
+        planName: s.planName,
+        planType: s.planType,
+        total: s.total,
+        currency: s.currency,
+        status: s.status,
+        deliveryStatus: s.deliveryStatus,
+        createdAt: s.createdAt,
+        deliveryExpectedAt: s.deliveryExpectedAt,
+        deliveredAt: s.deliveredAt,
+      }))
+    );
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to load subscriptions" });
+  }
+});
+
+app.patch("/api/admin/subscriptions/:id", adminAuthMiddleware, async (req, res) => {
+  try {
+    const { status, deliveryStatus, deliveryExpectedAt, deliveredAt } = req.body || {};
+    const update = {};
+    if (status !== undefined) update.status = String(status).trim();
+    if (deliveryStatus !== undefined) update.deliveryStatus = String(deliveryStatus).trim();
+    if (deliveryExpectedAt !== undefined) {
+      update.deliveryExpectedAt = deliveryExpectedAt ? new Date(deliveryExpectedAt) : null;
+    }
+    if (deliveredAt !== undefined) {
+      update.deliveredAt = deliveredAt ? new Date(deliveredAt) : null;
+    }
+    const sub = await Subscription.findByIdAndUpdate(req.params.id, update, {
+      new: true,
+      runValidators: true,
+    }).lean();
+    if (!sub) return res.status(404).json({ error: "Subscription not found" });
+    res.json({
+      id: sub._id.toString(),
+      userName: sub.userName,
+      email: sub.email,
+      source: sub.source,
+      planName: sub.planName,
+      planType: sub.planType,
+      total: sub.total,
+      currency: sub.currency,
+      status: sub.status,
+      deliveryStatus: sub.deliveryStatus,
+      createdAt: sub.createdAt,
+      deliveryExpectedAt: sub.deliveryExpectedAt,
+      deliveredAt: sub.deliveredAt,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to update subscription" });
   }
 });
 
@@ -485,6 +946,7 @@ app.post("/api/admin/posts", adminAuthMiddleware, uploadPostMedia.fields(postMed
       content: String(body.content || "").trim(),
       format: ["standard", "gallery", "video", "audio", "link", "quote"].includes(body.format) ? body.format : "standard",
       category,
+      featuredImageAlt: String(body.featuredImageAlt || "").trim(),
       excerpt: String(body.excerpt || "").trim(),
       readTime: String(body.readTime || "4 min read").trim(),
       featuredImageUrl,
@@ -513,6 +975,7 @@ app.patch("/api/admin/posts/:id", adminAuthMiddleware, uploadPostMedia.fields(po
     if (body.content !== undefined) post.content = String(body.content).trim();
     if (body.format !== undefined && ["standard", "gallery", "video", "audio", "link", "quote"].includes(body.format)) post.format = body.format;
     if (body.category !== undefined) post.category = String(body.category).trim();
+    if (body.featuredImageAlt !== undefined) post.featuredImageAlt = String(body.featuredImageAlt).trim();
     if (body.excerpt !== undefined) post.excerpt = String(body.excerpt).trim();
     if (body.readTime !== undefined) post.readTime = String(body.readTime).trim();
     if (body.videoUrl !== undefined) post.media.videoUrl = String(body.videoUrl).trim();
@@ -694,7 +1157,12 @@ app.get("/api/posts/news/:id", async (req, res) => {
       { new: true }
     ).lean();
     if (!post) return res.status(404).json({ error: "Not found" });
-    res.json({ ...post, id: post._id.toString(), imageUrl: post.featuredImageUrl });
+    res.json({
+      ...post,
+      id: post._id.toString(),
+      imageUrl: post.featuredImageUrl,
+      imageAlt: post.featuredImageAlt || "",
+    });
   } catch (e) {
     res.status(500).json({ error: e.message || "Failed to load article" });
   }
@@ -721,6 +1189,7 @@ app.get("/api/articles", async (req, res) => {
       posts.map((p) => ({
         id: p._id.toString(),
         imageUrl: p.featuredImageUrl,
+        imageAlt: p.featuredImageAlt || "",
         title: p.title,
         excerpt: p.excerpt || p.subtitle || "",
         date: p.createdAt ? new Date(p.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "",

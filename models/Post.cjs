@@ -20,6 +20,7 @@ const postSchema = new mongoose.Schema(
       quoteText: { type: String },
     },
     category: { type: String, required: true, trim: true },
+    featuredImageAlt: { type: String, trim: true, default: "" },
     excerpt: { type: String, trim: true, default: "" },
     readTime: { type: String, trim: true, default: "4 min read" },
     views: { type: Number, default: 0 },
