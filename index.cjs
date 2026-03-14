@@ -90,6 +90,9 @@ app.set("trust proxy", 1);
 
 // ----- CORS (use cors package so preflight is always correct on Railway) -----
 const DEFAULT_ORIGINS = [
+  "https://brainfeed-frontend.vercel.app",
+  "https://brainfeed-frontend-shgo.vercel.app",
+  "https://brainfeed-frontend-eight.vercel.app",
   "http://localhost:5173",
   "http://localhost:8080",
   "http://127.0.0.1:5173",
@@ -106,7 +109,13 @@ if (envOrigins) {
 
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    if (!origin) return callback(null, true);
+    // Check exact match first
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    // Allow any Vercel preview deployment subdomain
+    if (origin.match(/^https:\/\/brainfeed-frontend-[a-z0-9]+\.vercel\.app$/)) {
+      return callback(null, true);
+    }
     callback(null, false);
   },
   credentials: true,
