@@ -81,6 +81,7 @@ app.set("trust proxy", 1);
 // ----- CORS (use cors package so preflight is always correct on Railway) -----
 const DEFAULT_ORIGINS = [
   "https://brainfeed-frontend.vercel.app",
+  "https://brainfeed-frontend-jar2.vercel.app",
   "http://localhost:5173",
   "http://localhost:8080",
   "http://127.0.0.1:5173",
@@ -95,9 +96,22 @@ if (envOrigins) {
   });
 }
 
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+  // Allow any Vercel deployment whose host starts with brainfeed-frontend
+  try {
+    const url = new URL(origin);
+    if (url.hostname.startsWith("brainfeed-frontend") && url.hostname.endsWith(".vercel.app")) {
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
 const corsOptions = {
   origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+    if (isAllowedOrigin(origin)) return callback(null, true);
     callback(null, false);
   },
   credentials: true,
@@ -108,7 +122,7 @@ app.use(cors(corsOptions));
 
 function setCorsHeaders(req, res) {
   const origin = req.headers.origin;
-  const value = (origin && allowedOrigins.includes(origin)) ? origin : allowedOrigins[0];
+  const value = (origin && isAllowedOrigin(origin)) ? origin : allowedOrigins[0];
   res.setHeader("Access-Control-Allow-Origin", value);
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
