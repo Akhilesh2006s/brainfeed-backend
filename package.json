@@ -1,14 +1,22 @@
 {
-  "name": "brainfeed-collective",
+  "name": "brainfeed-backend",
   "private": true,
   "version": "1.0.0",
-  "description": "Brainfeed Magazine – frontend and backend in separate folders",
+  "description": "Brainfeed Magazine API",
+  "main": "index.cjs",
+  "engines": { "node": ">=18" },
   "scripts": {
-    "start": "node backend/index.js",
-    "dev": "npm run dev --prefix frontend",
-    "build": "npm run build --prefix frontend",
-    "server": "npm run start --prefix backend",
-    "install:all": "npm install --prefix frontend && npm install --prefix backend"
+    "start": "node index.cjs",
+    "dev": "node index.cjs"
   },
-  "main": "backend/index.js"
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.23.0",
+    "multer": "^1.4.5-lts.1"
+  }
 }
