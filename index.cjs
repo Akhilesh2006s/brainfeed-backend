@@ -131,7 +131,7 @@ const mongoUri = (process.env.MONGO_URI || "").trim();
 
 // Root – so deployed URL works for quick checks (CORS applied by middleware)
 app.get("/", (req, res) => {
-  res.json({ ok: true, api: "Brainfeed API", health: "/api/health" });
+  res.json({ ok: true, api: "Brainfeed API", health: "/api/health", capabilities: "/api/capabilities" });
 });
 
 // Health check: MongoDB reachable + Cloudinary config (no auth required). Never throws 500.
@@ -167,23 +167,14 @@ app.get("/api/health", async (req, res) => {
   }
 });
 
-function startServer() {
-  const host = process.env.HOST || "0.0.0.0";
-  app.listen(PORT, host, () => {
-    console.log(`Brainfeed API running on http://${host}:${PORT}`);
-    if (isProduction && (!process.env.JWT_SECRET || process.env.JWT_SECRET === "brainfeed-jwt-secret-change-in-production")) {
-      console.warn("WARNING: Set JWT_SECRET in production (e.g. on Railway) for secure tokens.");
-    }
-    if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) {
-      console.warn("Admin login: ADMIN_EMAIL or ADMIN_PASSWORD not set in .env – admin login may fail.");
-    } else {
-      console.log("Admin login: credentials loaded from .env");
-    }
+/** Public: verify deployed API includes flipbooks (admin routes require auth). If this 404s, redeploy backend from latest `backend/` code. */
+app.get("/api/capabilities", (req, res) => {
+  res.json({
+    flipbooks: true,
+    adminFlipbooks: "/api/admin/flipbooks",
+    publicFlipbooks: "/api/flipbooks",
   });
-}
-
-// Start server immediately so Railway gets a response (required for "Application failed to respond")
-startServer();
+});
 
 // MongoDB: connect in background so app stays up even if DB is slow or temporarily down
 const mongooseOptions = {
@@ -1684,3 +1675,21 @@ app.use((err, req, res, next) => {
     next(err);
   }
 });
+
+function startServer() {
+  const host = process.env.HOST || "0.0.0.0";
+  app.listen(PORT, host, () => {
+    console.log(`Brainfeed API running on http://${host}:${PORT}`);
+    if (isProduction && (!process.env.JWT_SECRET || process.env.JWT_SECRET === "brainfeed-jwt-secret-change-in-production")) {
+      console.warn("WARNING: Set JWT_SECRET in production (e.g. on Railway) for secure tokens.");
+    }
+    if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) {
+      console.warn("Admin login: ADMIN_EMAIL or ADMIN_PASSWORD not set in .env – admin login may fail.");
+    } else {
+      console.log("Admin login: credentials loaded from .env");
+    }
+  });
+}
+
+// Listen after all routes are registered (Railway health checks + no race on first request)
+startServer();
