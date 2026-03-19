@@ -311,6 +311,12 @@ function getDefaultSiteSettings() {
       heroTitle: "Empowering children in their journey of literacy, numeracy and beyond.",
       heroBody:
         "Since 2013 we have been working with schools, educators and childhood advocacy organisations to keep the reading habit alive among the growing minds that are the destiny of our nation tomorrow.",
+      heroImageUrl: "",
+      heroImageAlt: "",
+      aboutCoverMain: "",
+      aboutCoverPrimary2: "",
+      aboutCoverPrimary1: "",
+      aboutCoverJunior: "",
       stat1Value: "60,000+",
       stat1Label: "Schools Reached",
       stat2Value: "3 Lakh+",
@@ -687,6 +693,7 @@ app.patch("/api/admin/site-settings", adminAuthMiddleware, requireAdminRole("adm
       topBar: { ...(existing.topBar || {}), ...(body.topBar || {}) },
       footer: { ...(existing.footer || {}), ...(body.footer || {}) },
       contact: { ...(existing.contact || {}), ...(body.contact || {}) },
+      about: { ...(existing.about || {}), ...(body.about || {}) },
     };
     const saved = await SiteSettings.findOneAndUpdate({ key: "default" }, { $set: update }, { new: true, upsert: true });
     res.json(saved.toJSON());
@@ -710,6 +717,25 @@ app.post(
       res.status(201).json({ url: r.secure_url });
     } catch (e) {
       res.status(500).json({ error: e.message || "Failed to upload hero image" });
+    }
+  },
+);
+
+// Upload hero + covers for About page (admin)
+app.post(
+  "/api/admin/site-settings/about-image",
+  adminAuthMiddleware,
+  requireAdminRole("admin"),
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "Image file is required" });
+      }
+      const r = await uploadToCloudinary(req.file.buffer, req.file.mimetype, "brainfeed-about");
+      res.status(201).json({ url: r.secure_url });
+    } catch (e) {
+      res.status(500).json({ error: e.message || "Failed to upload image" });
     }
   },
 );
