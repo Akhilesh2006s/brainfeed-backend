@@ -279,6 +279,15 @@ function getDefaultSiteSettings() {
         "Brainfeed brings educators, parents and students one step closer—covering board exams, NEP 2020, classroom practices and wellbeing in a single, beautifully curated reading experience.",
       backgroundImageUrl: "",
     },
+    homeLayout: {
+      latestNewsFeaturedId: "",
+      latestNewsSideIds: [],
+      expertViewIds: [],
+      editorsPickIds: [],
+      technologyIds: [],
+      parentingIds: [],
+      latestMagazineIds: [],
+    },
     topBar: {
       links: [
         { label: "Michampsindia", url: "https://michampsindia.com/" },
@@ -690,6 +699,7 @@ app.patch("/api/admin/site-settings", adminAuthMiddleware, requireAdminRole("adm
     const existing = await getOrCreateSiteSettings();
     const update = {
       homeHero: { ...(existing.homeHero || {}), ...(body.homeHero || {}) },
+      homeLayout: { ...(existing.homeLayout || {}), ...(body.homeLayout || {}) },
       topBar: { ...(existing.topBar || {}), ...(body.topBar || {}) },
       footer: { ...(existing.footer || {}), ...(body.footer || {}) },
       contact: { ...(existing.contact || {}), ...(body.contact || {}) },

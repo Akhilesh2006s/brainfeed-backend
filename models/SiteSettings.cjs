@@ -11,6 +11,15 @@ const siteSettingsSchema = new mongoose.Schema(
       subtitle2: { type: String, trim: true, default: "" },
       backgroundImageUrl: { type: String, trim: true, default: "" },
     },
+    homeLayout: {
+      latestNewsFeaturedId: { type: String, trim: true, default: "" },
+      latestNewsSideIds: [{ type: String, trim: true }],
+      expertViewIds: [{ type: String, trim: true }],
+      editorsPickIds: [{ type: String, trim: true }],
+      technologyIds: [{ type: String, trim: true }],
+      parentingIds: [{ type: String, trim: true }],
+      latestMagazineIds: [{ type: String, trim: true }],
+    },
     topBar: {
       links: [
         {
