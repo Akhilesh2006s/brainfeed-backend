@@ -306,6 +306,28 @@ function getDefaultSiteSettings() {
         email: "info@brainfeedmagazine.com",
       },
     },
+    about: {
+      heroEyebrow: "Knowing Brainfeed",
+      heroTitle: "Empowering children in their journey of literacy, numeracy and beyond.",
+      heroBody:
+        "Since 2013 we have been working with schools, educators and childhood advocacy organisations to keep the reading habit alive among the growing minds that are the destiny of our nation tomorrow.",
+      stat1Value: "60,000+",
+      stat1Label: "Schools Reached",
+      stat2Value: "3 Lakh+",
+      stat2Label: "School Leaders & Educators",
+      stat3Value: "1,75,000",
+      stat3Label: "Subscribers",
+      stat4Value: "45+",
+      stat4Label: "Educational Conferences",
+      stat5Value: "12,000+",
+      stat5Label: "Leaders Recognised",
+      conferencesBody:
+        "Our educational conferences and expos have seen active participation from 8,000+ educational leaders and 250+ leading brands. Since 2013 we have organised 45+ conferences — a space for school leaders and educators to share ideas, identify trends and network with peers.",
+      awardsBody:
+        "Brainfeed has recognised the contribution of over 12,000 leaders, educators, and companies in the educational products and services segment, conferring them with respective awards for excellence and innovation.",
+      ctaTitle:
+        "Ten years and still counting — trusted by readers who swear by our objectivity and quality.",
+    },
     contact: {
       addressLines: [
         "Kakani Edu Media Pvt Ltd",
