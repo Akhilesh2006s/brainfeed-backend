@@ -42,11 +42,14 @@ const siteSettingsSchema = new mongoose.Schema(
     contact: {
       addressLines: [{ type: String, trim: true }],
       whatsapp: { type: String, trim: true, default: "" },
+      phoneAlt: { type: String, trim: true, default: "" },
       emails: [{ type: String, trim: true }],
       regionTitle: { type: String, trim: true, default: "" },
       regionName: { type: String, trim: true, default: "" },
       regionWhatsapp: { type: String, trim: true, default: "" },
       regionEmail: { type: String, trim: true, default: "" },
+      mapUrl: { type: String, trim: true, default: "" },
+      mapEmbedUrl: { type: String, trim: true, default: "" },
     },
   },
   { timestamps: true }

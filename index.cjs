@@ -314,11 +314,15 @@ function getDefaultSiteSettings() {
         "Telangana 500084",
       ],
       whatsapp: "918448737157",
+      phoneAlt: "",
       emails: ["info@brainfeedmagazine.com", "kakani2406@gmail.com"],
       regionTitle: "Punjab Region",
       regionName: "Katyayani Singh",
       regionWhatsapp: "918448737157",
       regionEmail: "katyayanis2019@gmail.com",
+      mapUrl:
+        "https://www.google.com/maps?ll=17.473071,78.357614&z=22&t=m&hl=en&gl=IN&mapclient=embed&cid=16509507856910290038",
+      mapEmbedUrl: "https://www.google.com/maps?q=17.473071,78.357614&z=22&output=embed",
     },
   };
 }
@@ -668,6 +672,44 @@ app.patch("/api/admin/site-settings", adminAuthMiddleware, requireAdminRole("adm
     res.status(500).json({ error: e.message || "Failed to update site settings" });
   }
 });
+
+// Upload hero background image from admin (returns Cloudinary URL)
+app.post(
+  "/api/admin/site-settings/hero-image",
+  adminAuthMiddleware,
+  requireAdminRole("admin"),
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "Image file is required" });
+      }
+      const r = await uploadToCloudinary(req.file.buffer, req.file.mimetype, "brainfeed-hero");
+      res.status(201).json({ url: r.secure_url });
+    } catch (e) {
+      res.status(500).json({ error: e.message || "Failed to upload hero image" });
+    }
+  },
+);
+
+// Upload inline image for news/blog content editor (admin)
+app.post(
+  "/api/admin/posts/inline-image",
+  adminAuthMiddleware,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "Image file is required" });
+      }
+      const folder = "brainfeed-inline";
+      const r = await uploadToCloudinary(req.file.buffer, req.file.mimetype, folder);
+      res.status(201).json({ url: r.secure_url });
+    } catch (e) {
+      res.status(500).json({ error: e.message || "Failed to upload image" });
+    }
+  },
+);
 
 // Admin products CRUD
 app.get("/api/admin/products", adminAuthMiddleware, requireAdminRole("admin"), async (req, res) => {
@@ -1019,6 +1061,7 @@ app.post("/api/admin/posts", adminAuthMiddleware, uploadPostMedia.fields(postMed
     if (!title || !category) {
       return res.status(400).json({ error: "Title and category are required" });
     }
+    const slug = slugifyPost(body.slug || title);
     const folder = type === "news" ? "brainfeed-news" : "brainfeed-blog";
     let featuredImageUrl = "";
     if (req.files?.featuredImage?.[0]) {
@@ -1057,6 +1100,7 @@ app.post("/api/admin/posts", adminAuthMiddleware, uploadPostMedia.fields(postMed
     const post = await Post.create({
       type,
       title,
+      slug,
       subtitle: String(body.subtitle || "").trim(),
       content: String(body.content || "").trim(),
       format: ["standard", "gallery", "video", "audio", "link", "quote"].includes(body.format) ? body.format : "standard",
@@ -1064,6 +1108,9 @@ app.post("/api/admin/posts", adminAuthMiddleware, uploadPostMedia.fields(postMed
       featuredImageAlt: String(body.featuredImageAlt || "").trim(),
       excerpt: String(body.excerpt || "").trim(),
       readTime: String(body.readTime || "4 min read").trim(),
+      metaTitle: String(body.metaTitle || "").trim(),
+      metaDescription: String(body.metaDescription || "").trim(),
+      focusKeyphrase: String(body.focusKeyphrase || "").trim(),
       featuredImageUrl,
       media: {
         gallery: galleryUrls,
@@ -1075,6 +1122,11 @@ app.post("/api/admin/posts", adminAuthMiddleware, uploadPostMedia.fields(postMed
     });
     res.status(201).json(post);
   } catch (e) {
+    if (e && e.code === 11000 && e.keyPattern && e.keyPattern.slug) {
+      return res
+        .status(409)
+        .json({ error: "Slug already exists for this type. Please choose a different slug." });
+    }
     res.status(500).json({ error: e.message || "Failed to create post" });
   }
 });
@@ -1086,6 +1138,7 @@ app.patch("/api/admin/posts/:id", adminAuthMiddleware, uploadPostMedia.fields(po
     const body = req.body || {};
     const folder = post.type === "news" ? "brainfeed-news" : "brainfeed-blog";
     if (body.title !== undefined) post.title = String(body.title).trim();
+    if (body.slug !== undefined) post.slug = slugifyPost(body.slug || post.title);
     if (body.subtitle !== undefined) post.subtitle = String(body.subtitle).trim();
     if (body.content !== undefined) post.content = String(body.content).trim();
     if (body.format !== undefined && ["standard", "gallery", "video", "audio", "link", "quote"].includes(body.format)) post.format = body.format;
@@ -1093,6 +1146,9 @@ app.patch("/api/admin/posts/:id", adminAuthMiddleware, uploadPostMedia.fields(po
     if (body.featuredImageAlt !== undefined) post.featuredImageAlt = String(body.featuredImageAlt).trim();
     if (body.excerpt !== undefined) post.excerpt = String(body.excerpt).trim();
     if (body.readTime !== undefined) post.readTime = String(body.readTime).trim();
+    if (body.metaTitle !== undefined) post.metaTitle = String(body.metaTitle).trim();
+    if (body.metaDescription !== undefined) post.metaDescription = String(body.metaDescription).trim();
+    if (body.focusKeyphrase !== undefined) post.focusKeyphrase = String(body.focusKeyphrase).trim();
     if (body.videoUrl !== undefined) post.media.videoUrl = String(body.videoUrl).trim();
     if (body.audioUrl !== undefined) post.media.audioUrl = String(body.audioUrl).trim();
     if (body.linkUrl !== undefined) post.media.linkUrl = String(body.linkUrl).trim();
@@ -1113,6 +1169,11 @@ app.patch("/api/admin/posts/:id", adminAuthMiddleware, uploadPostMedia.fields(po
     await post.save();
     res.json(post);
   } catch (e) {
+    if (e && e.code === 11000 && e.keyPattern && e.keyPattern.slug) {
+      return res
+        .status(409)
+        .json({ error: "Slug already exists for this type. Please choose a different slug." });
+    }
     res.status(500).json({ error: e.message || "Failed to update post" });
   }
 });
@@ -1172,12 +1233,23 @@ app.post("/api/admin/pages", adminAuthMiddleware, async (req, res) => {
     }
     const parentId = body.parent ? body.parent : null;
     const order = Number(body.order) ?? 0;
+    const heroImageUrl = String(body.heroImageUrl || "").trim();
+    const heroImageAlt = String(body.heroImageAlt || "").trim();
+    const aboutCovers = {
+      main: String(body.aboutCoverMain || "").trim(),
+      primary2: String(body.aboutCoverPrimary2 || "").trim(),
+      primary1: String(body.aboutCoverPrimary1 || "").trim(),
+      junior: String(body.aboutCoverJunior || "").trim(),
+    };
     const page = await Page.create({
       title,
       slug,
       content: String(body.content || "").trim(),
       parent: parentId || null,
       order,
+      heroImageUrl,
+      heroImageAlt,
+      aboutCovers,
     });
     res.status(201).json(page);
   } catch (e) {
@@ -1208,6 +1280,26 @@ app.patch("/api/admin/pages/:id", adminAuthMiddleware, async (req, res) => {
     if (body.content !== undefined) page.content = String(body.content).trim();
     if (body.parent !== undefined) page.parent = body.parent || null;
     if (body.order !== undefined) page.order = Number(body.order) ?? 0;
+    if (body.heroImageUrl !== undefined) page.heroImageUrl = String(body.heroImageUrl || "").trim();
+    if (body.heroImageAlt !== undefined) page.heroImageAlt = String(body.heroImageAlt || "").trim();
+    if (
+      body.aboutCoverMain !== undefined ||
+      body.aboutCoverPrimary2 !== undefined ||
+      body.aboutCoverPrimary1 !== undefined ||
+      body.aboutCoverJunior !== undefined
+    ) {
+      page.aboutCovers = {
+        ...(page.aboutCovers || {}),
+        ...(body.aboutCoverMain !== undefined ? { main: String(body.aboutCoverMain || "").trim() } : {}),
+        ...(body.aboutCoverPrimary2 !== undefined
+          ? { primary2: String(body.aboutCoverPrimary2 || "").trim() }
+          : {}),
+        ...(body.aboutCoverPrimary1 !== undefined
+          ? { primary1: String(body.aboutCoverPrimary1 || "").trim() }
+          : {}),
+        ...(body.aboutCoverJunior !== undefined ? { junior: String(body.aboutCoverJunior || "").trim() } : {}),
+      };
+    }
     await page.save();
     res.json(page);
   } catch (e) {
@@ -1237,7 +1329,26 @@ app.get("/api/pages", async (req, res) => {
 
 app.get("/api/pages/slug/:slug", async (req, res) => {
   try {
-    const page = await Page.findOne({ slug: req.params.slug }).lean();
+    const slug = String(req.params.slug || "").trim();
+    let page = await Page.findOne({ slug }).lean();
+
+    // If About page is requested but doesn't exist yet, seed it with default content
+    if (!page && slug === "about") {
+      const defaultContent = `
+<p>Brainfeed is an educational media house empowering children in their journey of childhood, literacy and numeracy development — and helping educators teach out-of-curriculum skills and concepts.</p>
+<p>Our children's editions ignite young minds and nurture curiosity with content that raises questions and stimulates interest. The educator edition connects thousands of school leaders with objective insights to see what's now and next.</p>
+`.trim();
+
+      const created = await Page.create({
+        title: "About Brainfeed",
+        slug: "about",
+        content: defaultContent,
+        parent: null,
+        order: 0,
+      });
+      page = created.toJSON();
+    }
+
     if (!page) return res.status(404).json({ error: "Page not found" });
     res.json(page);
   } catch (e) {
