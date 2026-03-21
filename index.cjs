@@ -13,6 +13,7 @@ const User = require("./models/User.cjs");
 const Admin = require("./models/Admin.cjs");
 const Post = require("./models/Post.cjs");
 const Page = require("./models/Page.cjs");
+const Flipbook = require("./models/Flipbook.cjs");
 const Subscription = require("./models/Subscription.cjs");
 const Product = require("./models/Product.cjs");
 const SiteSettings = require("./models/SiteSettings.cjs");
@@ -54,6 +55,15 @@ const uploadProductImage = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: imageFilter,
+});
+const pdfFilter = (req, file, cb) => {
+  if (file.mimetype === "application/pdf") cb(null, true);
+  else cb(new Error("Only PDF files are allowed"), false);
+};
+const uploadFlipbookPdf = multer({
+  storage,
+  limits: { fileSize: 80 * 1024 * 1024 },
+  fileFilter: pdfFilter,
 });
 
 function readArticles() {
@@ -264,6 +274,18 @@ async function uploadToCloudinary(buffer, mimeType, folder) {
   const dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`;
   return new Promise((resolve, reject) => {
     cloudinary.uploader.upload(dataUri, { folder }, (err, res) => (err ? reject(err) : resolve(res)));
+  });
+}
+
+/** PDF / raw files — Cloudinary `raw` resource type */
+async function uploadPdfToCloudinary(buffer, mimeType, folder) {
+  const dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`;
+  return new Promise((resolve, reject) => {
+    cloudinary.uploader.upload(
+      dataUri,
+      { folder, resource_type: "raw", use_filename: true, unique_filename: true },
+      (err, res) => (err ? reject(err) : resolve(res))
+    );
   });
 }
 
@@ -1372,6 +1394,137 @@ app.delete("/api/admin/pages/:id", adminAuthMiddleware, async (req, res) => {
     res.json({ deleted: true });
   } catch (e) {
     res.status(500).json({ error: e.message || "Failed to delete page" });
+  }
+});
+
+// ----- Admin flipbooks (PDF magazine / flipbook viewer) -----
+app.get("/api/admin/flipbooks", adminAuthMiddleware, async (req, res) => {
+  try {
+    const list = await Flipbook.find().sort({ updatedAt: -1 }).lean();
+    res.json(list);
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to list flipbooks" });
+  }
+});
+
+app.get("/api/admin/flipbooks/:id", adminAuthMiddleware, async (req, res) => {
+  try {
+    const fb = await Flipbook.findById(req.params.id).lean();
+    if (!fb) return res.status(404).json({ error: "Flipbook not found" });
+    res.json(fb);
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to load flipbook" });
+  }
+});
+
+app.post("/api/admin/flipbooks", adminAuthMiddleware, uploadFlipbookPdf.single("pdf"), async (req, res) => {
+  try {
+    const body = req.body || {};
+    const title = String(body.title || "").trim();
+    if (!title) return res.status(400).json({ error: "Title is required" });
+    let slug = String(body.slug || "").trim() || slugify(title);
+    slug = slugify(slug) || "flipbook";
+    const existing = await Flipbook.findOne({ slug });
+    if (existing) {
+      let suffix = 1;
+      while (await Flipbook.findOne({ slug: slug + "-" + suffix })) suffix++;
+      slug = slug + "-" + suffix;
+    }
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ error: "PDF file is required (field name: pdf)" });
+    }
+    const r = await uploadPdfToCloudinary(req.file.buffer, req.file.mimetype, "brainfeed-flipbooks");
+    const pdfUrl = r.secure_url || r.url;
+    const fb = await Flipbook.create({
+      title,
+      slug,
+      pdfUrl,
+      published: body.published !== undefined ? Boolean(body.published) : true,
+    });
+    res.status(201).json(fb);
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to create flipbook" });
+  }
+});
+
+app.patch("/api/admin/flipbooks/:id", adminAuthMiddleware, async (req, res) => {
+  try {
+    const fb = await Flipbook.findById(req.params.id);
+    if (!fb) return res.status(404).json({ error: "Flipbook not found" });
+    const body = req.body || {};
+    if (body.title !== undefined) fb.title = String(body.title).trim();
+    if (body.slug !== undefined) {
+      const raw = String(body.slug).trim();
+      let candidate = raw ? slugify(raw) : slugify(fb.title);
+      if (!candidate) candidate = "flipbook";
+      let finalSlug = candidate;
+      let n = 0;
+      while (await Flipbook.findOne({ slug: finalSlug, _id: { $ne: fb._id } })) {
+        n += 1;
+        finalSlug = `${candidate}-${n}`;
+      }
+      fb.slug = finalSlug;
+    }
+    if (body.published !== undefined) fb.published = Boolean(body.published);
+    await fb.save();
+    res.json(fb);
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to update flipbook" });
+  }
+});
+
+app.post(
+  "/api/admin/flipbooks/:id/pdf",
+  adminAuthMiddleware,
+  uploadFlipbookPdf.single("pdf"),
+  async (req, res) => {
+    try {
+      const fb = await Flipbook.findById(req.params.id);
+      if (!fb) return res.status(404).json({ error: "Flipbook not found" });
+      if (!req.file || !req.file.buffer) {
+        return res.status(400).json({ error: "PDF file is required (field name: pdf)" });
+      }
+      const r = await uploadPdfToCloudinary(req.file.buffer, req.file.mimetype, "brainfeed-flipbooks");
+      fb.pdfUrl = r.secure_url || r.url;
+      await fb.save();
+      res.json(fb);
+    } catch (e) {
+      res.status(500).json({ error: e.message || "Failed to upload PDF" });
+    }
+  }
+);
+
+app.delete("/api/admin/flipbooks/:id", adminAuthMiddleware, async (req, res) => {
+  try {
+    const fb = await Flipbook.findByIdAndDelete(req.params.id);
+    if (!fb) return res.status(404).json({ error: "Flipbook not found" });
+    res.json({ deleted: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to delete flipbook" });
+  }
+});
+
+// ----- Public flipbooks -----
+app.get("/api/flipbooks", async (req, res) => {
+  try {
+    const list = await Flipbook.find({ published: true })
+      .sort({ updatedAt: -1 })
+      .select("title slug updatedAt")
+      .lean();
+    res.json(list);
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to list flipbooks" });
+  }
+});
+
+app.get("/api/flipbooks/slug/:slug", async (req, res) => {
+  try {
+    const slug = String(req.params.slug || "").trim();
+    const fb = await Flipbook.findOne({ slug, published: true }).lean();
+    if (!fb) return res.status(404).json({ error: "Flipbook not found" });
+    res.json({ title: fb.title, slug: fb.slug, pdfUrl: fb.pdfUrl });
+  } catch (e) {
+    res.status(500).json({ error: e.message || "Failed to load flipbook" });
   }
 });
 
