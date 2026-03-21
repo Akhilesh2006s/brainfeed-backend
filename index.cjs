@@ -1257,6 +1257,8 @@ app.patch("/api/admin/posts/:id", adminAuthMiddleware, uploadPostMedia.fields(po
       const r = await uploadToCloudinary(req.files.featuredImage[0].buffer, req.files.featuredImage[0].mimetype, folder);
       post.featuredImageUrl = r.secure_url;
     }
+    /* Clear gallery *before* appending new uploads (admin “remove all + add new” in one save). */
+    if (body.galleryRemove === "true" || body.clearGallery === "true") post.media.gallery = [];
     if (req.files?.gallery?.length) {
       const newUrls = [];
       for (const file of req.files.gallery) {
@@ -1265,7 +1267,6 @@ app.patch("/api/admin/posts/:id", adminAuthMiddleware, uploadPostMedia.fields(po
       }
       post.media.gallery = post.media.gallery.concat(newUrls);
     }
-    if (body.galleryRemove === "true" || body.clearGallery === "true") post.media.gallery = [];
     await post.save();
     res.json(post);
   } catch (e) {
