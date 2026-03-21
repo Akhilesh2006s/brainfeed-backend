@@ -39,7 +39,8 @@ App runs at **http://localhost:8080**. In dev, `/api` requests are proxied to th
 
 **Backend** (Railway, Render, Fly.io, etc.)
 
-- Deploy the `backend/` folder. Set these env vars in the platform:
+- Deploy the `backend/` folder. **Railway:** set **Root Directory** to `backend` (the folder that contains `index.cjs` and `package.json`), then use start command **`npm start`** (see `railway.json`). If Root Directory is the **repo root** instead, use **`cd backend && npm start`**.
+- Set these env vars in the platform:
   - `MONGO_URI`, `JWT_SECRET`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
   - `ADMIN_EMAIL`, `ADMIN_PASSWORD`
   - Optional: `PORT` (default 3001), `HOST` (default 0.0.0.0)
@@ -59,6 +60,7 @@ App runs at **http://localhost:8080**. In dev, `/api` requests are proxied to th
 | White screen / API fails in production | Set `VITE_API_URL` to backend URL and **rebuild** the frontend. |
 | CORS errors | Set `CORS_ORIGIN` (or `FRONTEND_URL`) on the backend to your frontend URL. |
 | 404 on refresh (e.g. `/admin/posts`) | Use the included `vercel.json` / `netlify.toml`, or configure your host to serve `index.html` for all routes. |
+| **404 on `/api/admin/flipbooks`, `/api/admin/posts/inline-image`, etc.** | The backend on Railway is **out of date**. Push the latest code and **redeploy** so `index.cjs` includes those routes (flipbooks, inline image upload to Cloudinary, etc.). |
 | Admin 401 after deploy | Ensure backend has `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `MONGO_URI` set and MongoDB is reachable. |
 
 **Security:** Never commit `.env` (it’s in `.gitignore`). Use strong `JWT_SECRET` and `ADMIN_PASSWORD` in production.

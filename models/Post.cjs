@@ -26,6 +26,8 @@ const postSchema = new mongoose.Schema(
     readTime: { type: String, trim: true, default: "4 min read" },
     metaTitle: { type: String, trim: true, default: "" },
     metaDescription: { type: String, trim: true, default: "" },
+    /** SEO / topic tags (like WordPress tags) — stored as trimmed strings, max length enforced in API */
+    tags: { type: [String], default: [] },
     focusKeyphrase: { type: String, trim: true, default: "" },
     views: { type: Number, default: 0 },
   },

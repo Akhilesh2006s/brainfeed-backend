@@ -1113,6 +1113,33 @@ app.get("/api/admin/backup", adminAuthMiddleware, async (req, res) => {
 
 // (gallery APIs were removed)
 
+function slugifyPost(text) {
+  return String(text || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "") || "post";
+}
+
+/** Tags from multipart body: JSON array string or comma-separated; deduped, capped for SEO abuse. */
+function parsePostTags(raw) {
+  const MAX = 80;
+  const MAX_LEN = 120;
+  const normalize = (arr) =>
+    [...new Set(arr.map((t) => String(t).trim()).filter(Boolean).map((t) => t.slice(0, MAX_LEN)))].slice(0, MAX);
+  if (raw == null || raw === "") return [];
+  if (Array.isArray(raw)) return normalize(raw);
+  const s = String(raw).trim();
+  if (!s) return [];
+  try {
+    const j = JSON.parse(s);
+    if (Array.isArray(j)) return normalize(j);
+  } catch (_) {}
+  return normalize(s.split(/[,;]/));
+}
+
 // ----- Admin posts CRUD -----
 const postMediaFields = [
   { name: "featuredImage", maxCount: 1 },
@@ -1191,6 +1218,7 @@ app.post("/api/admin/posts", adminAuthMiddleware, uploadPostMedia.fields(postMed
       metaTitle: String(body.metaTitle || "").trim(),
       metaDescription: String(body.metaDescription || "").trim(),
       focusKeyphrase: String(body.focusKeyphrase || "").trim(),
+      tags: parsePostTags(body.tags),
       featuredImageUrl,
       media: {
         gallery: galleryUrls,
@@ -1229,6 +1257,7 @@ app.patch("/api/admin/posts/:id", adminAuthMiddleware, uploadPostMedia.fields(po
     if (body.metaTitle !== undefined) post.metaTitle = String(body.metaTitle).trim();
     if (body.metaDescription !== undefined) post.metaDescription = String(body.metaDescription).trim();
     if (body.focusKeyphrase !== undefined) post.focusKeyphrase = String(body.focusKeyphrase).trim();
+    if (body.tags !== undefined) post.tags = parsePostTags(body.tags);
     if (body.videoUrl !== undefined) post.media.videoUrl = String(body.videoUrl).trim();
     if (body.audioUrl !== undefined) post.media.audioUrl = String(body.audioUrl).trim();
     if (body.linkUrl !== undefined) post.media.linkUrl = String(body.linkUrl).trim();
