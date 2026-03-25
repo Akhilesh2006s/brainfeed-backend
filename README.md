@@ -19,6 +19,7 @@ brainfeed-collective-main/
 cd backend
 cp .env.example .env
 # Edit .env: set MONGO_URI, JWT_SECRET, CLOUDINARY_*, ADMIN_EMAIL, ADMIN_PASSWORD
+# Optional (payments): RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET
 npm install
 npm start
 ```
@@ -43,9 +44,10 @@ App runs at **http://localhost:8080**. In dev, `/api` requests are proxied to th
 - Set these env vars in the platform:
   - `MONGO_URI`, `JWT_SECRET`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
   - `ADMIN_EMAIL`, `ADMIN_PASSWORD`
+  - Payments (Razorpay): `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`
   - Optional: `PORT` (default 3001), `HOST` (default 0.0.0.0)
   - Optional: `CORS_ORIGIN` or `FRONTEND_URL` – your frontend URL(s), comma-separated, so the API only accepts requests from your site. Leave unset to allow all origins.
-- Start command: `npm start` (runs `node index.cjs`).
+- Start command: `npm start` (runs `node index.js`).
 
 **Frontend** (Vercel, Netlify, etc.)
 

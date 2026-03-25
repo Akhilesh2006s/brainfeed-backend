@@ -8,6 +8,8 @@ const multer = require("multer");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const Razorpay = require("razorpay");
+const crypto = require("crypto");
 const cloudinary = require("cloudinary").v2;
 const User = require("./models/User.cjs");
 const Admin = require("./models/Admin.cjs");
@@ -135,6 +137,84 @@ function setCorsHeaders(req, res) {
 }
 
 app.use(express.json());
+
+// ----- Razorpay payments -----
+const RAZORPAY_KEY_ID = (process.env.RAZORPAY_KEY_ID || "").trim();
+const RAZORPAY_KEY_SECRET = (process.env.RAZORPAY_KEY_SECRET || "").trim();
+const razorpayClient =
+  RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET
+    ? new Razorpay({ key_id: RAZORPAY_KEY_ID, key_secret: RAZORPAY_KEY_SECRET })
+    : null;
+
+async function createRazorpayOrder(req, res) {
+  try {
+    if (!razorpayClient) {
+      return res.status(500).json({ error: "Razorpay is not configured (missing env vars)" });
+    }
+
+    const amount = Number(req.body?.amount); // paise
+    const currency = String(req.body?.currency || "INR").trim() || "INR";
+    const receipt = String(req.body?.receipt || `bf_${Date.now()}`).trim();
+    const notes = typeof req.body?.notes === "object" && req.body?.notes ? req.body.notes : undefined;
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: "Invalid amount" });
+    }
+
+    const order = await razorpayClient.orders.create({
+      amount: Math.round(amount),
+      currency,
+      receipt,
+      notes,
+    });
+
+    res.status(201).json({
+      keyId: RAZORPAY_KEY_ID,
+      orderId: order.id,
+      amount: order.amount,
+      currency: order.currency,
+      receipt: order.receipt,
+    });
+  } catch (e) {
+    console.error("Razorpay order create error:", e);
+    res.status(500).json({ error: e?.message || "Failed to create Razorpay order" });
+  }
+}
+
+async function verifyRazorpayPayment(req, res) {
+  try {
+    if (!RAZORPAY_KEY_SECRET) {
+      return res.status(500).json({ error: "Razorpay is not configured (missing env vars)" });
+    }
+
+    const orderId = String(req.body?.razorpay_order_id || req.body?.orderId || "").trim();
+    const paymentId = String(req.body?.razorpay_payment_id || req.body?.paymentId || "").trim();
+    const signature = String(req.body?.razorpay_signature || req.body?.signature || "").trim();
+
+    if (!orderId || !paymentId || !signature) {
+      return res.status(400).json({ ok: false, error: "Missing order/payment/signature" });
+    }
+
+    const payload = `${orderId}|${paymentId}`;
+    const expected = crypto.createHmac("sha256", RAZORPAY_KEY_SECRET).update(payload).digest("hex");
+    const ok = crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+
+    if (!ok) return res.status(400).json({ ok: false, error: "Invalid signature" });
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Razorpay verify error:", e);
+    res.status(500).json({ ok: false, error: e?.message || "Verification failed" });
+  }
+}
+
+// Primary routes
+app.post("/api/payments/razorpay/order", createRazorpayOrder);
+app.post("/api/payments/razorpay/verify", verifyRazorpayPayment);
+
+// Backwards-compatible aliases (older frontend builds may call these)
+app.post("/api/razorpay/order", createRazorpayOrder);
+app.post("/api/razorpay/verify", verifyRazorpayPayment);
 
 const mongoUri = (process.env.MONGO_URI || "").trim();
 
