@@ -251,12 +251,39 @@ async function verifyRazorpayPayment(req, res) {
     if (!ok) return res.status(400).json({ ok: false, error: "Invalid signature" });
 
     const details = typeof req.body?.details === "object" && req.body?.details ? req.body.details : {};
+    const billingDetails =
+      typeof req.body?.billingDetails === "object" && req.body?.billingDetails
+        ? req.body.billingDetails
+        : {};
+    const shippingDetails =
+      typeof req.body?.shippingDetails === "object" && req.body?.shippingDetails
+        ? req.body.shippingDetails
+        : {};
+    const normalizedBilling = {
+      fullAddress: String(billingDetails?.fullAddress || details?.address || "").trim(),
+      city: String(billingDetails?.city || "").trim(),
+      state: String(billingDetails?.state || "").trim(),
+      pincode: String(billingDetails?.pincode || details?.pin || "").trim(),
+      email: String(billingDetails?.email || details?.email || "").trim().toLowerCase(),
+      contact: String(billingDetails?.contact || details?.mobile || "").trim(),
+      contactName: String(billingDetails?.contactName || details?.name || "").trim(),
+    };
+    const normalizedShipping = {
+      fullAddress: String(shippingDetails?.fullAddress || details?.address || "").trim(),
+      city: String(shippingDetails?.city || "").trim(),
+      state: String(shippingDetails?.state || "").trim(),
+      pincode: String(shippingDetails?.pincode || details?.pin || "").trim(),
+      email: String(shippingDetails?.email || details?.email || "").trim().toLowerCase(),
+      contact: String(shippingDetails?.contact || details?.mobile || "").trim(),
+      contactName: String(shippingDetails?.contactName || details?.name || "").trim(),
+    };
     const rawItems = Array.isArray(req.body?.items) ? req.body.items : [];
     const items = rawItems
       .map((item) => ({
         name: String(item?.name || "").trim(),
         quantity: Math.max(1, Number(item?.quantity) || 1),
         price: Math.max(0, Number(item?.price) || 0),
+        imageUrl: String(item?.imageUrl || "").trim(),
       }))
       .filter((item) => item.name);
     const total =
@@ -267,31 +294,30 @@ async function verifyRazorpayPayment(req, res) {
       (items.length === 1 ? items[0].name : `Brainfeed order (${items.length} items)`);
 
     await Subscription.create({
-      userName: String(details?.name || "").trim(),
-      email: String(details?.email || "").trim().toLowerCase(),
+      userName: normalizedBilling.contactName || normalizedShipping.contactName,
+      email: normalizedBilling.email || normalizedShipping.email,
       source: String(req.body?.source || "website").trim() || "website",
       planName: planName || "Brainfeed order",
       planType: items.length === 1 ? items[0].name : "Mixed subscription order",
       notes: [
-        String(details?.address || "").trim(),
-        String(details?.pin || "").trim() ? `PIN: ${String(details.pin).trim()}` : "",
-        String(details?.mobile || "").trim() ? `Mobile: ${String(details.mobile).trim()}` : "",
-        String(details?.landline || "").trim() ? `Landline: ${String(details.landline).trim()}` : "",
-        String(details?.website || "").trim() ? `Website: ${String(details.website).trim()}` : "",
-        String(details?.institution || "").trim()
-          ? `Institution: ${String(details.institution).trim()}`
-          : "",
+        normalizedShipping.fullAddress,
+        normalizedShipping.pincode ? `PIN: ${normalizedShipping.pincode}` : "",
+        normalizedShipping.contact ? `Mobile: ${normalizedShipping.contact}` : "",
+        normalizedShipping.city ? `City: ${normalizedShipping.city}` : "",
+        normalizedShipping.state ? `State: ${normalizedShipping.state}` : "",
       ]
         .filter(Boolean)
         .join(" | "),
       deliveryAddress: {
-        address: String(details?.address || "").trim(),
-        pin: String(details?.pin || "").trim(),
-        mobile: String(details?.mobile || "").trim(),
-        landline: String(details?.landline || "").trim(),
-        website: String(details?.website || "").trim(),
-        institution: String(details?.institution || "").trim(),
+        address: normalizedShipping.fullAddress,
+        pin: normalizedShipping.pincode,
+        mobile: normalizedShipping.contact,
+        landline: "",
+        website: "",
+        institution: "",
       },
+      billingAddress: normalizedBilling,
+      shippingAddress: normalizedShipping,
       items,
       currency: String(req.body?.currency || "INR").trim() || "INR",
       total,
@@ -1589,6 +1615,8 @@ app.get("/api/admin/subscriptions", adminAuthMiddleware, async (req, res) => {
         planType: s.planType,
         notes: s.notes,
         deliveryAddress: s.deliveryAddress || {},
+        billingAddress: s.billingAddress || {},
+        shippingAddress: s.shippingAddress || {},
         total: s.total,
         currency: s.currency,
         status: s.status,
@@ -1633,6 +1661,8 @@ app.patch("/api/admin/subscriptions/:id", adminAuthMiddleware, async (req, res) 
       planType: sub.planType,
       notes: sub.notes,
       deliveryAddress: sub.deliveryAddress || {},
+      billingAddress: sub.billingAddress || {},
+      shippingAddress: sub.shippingAddress || {},
       total: sub.total,
       currency: sub.currency,
       status: sub.status,
