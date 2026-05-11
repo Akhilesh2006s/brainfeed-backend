@@ -1611,42 +1611,103 @@ app.delete(
 );
 
 // ----- Admin subscriptions overview (for dashboard) -----
+function mapSubscriptionDocToAdminJson(s) {
+  if (!s || !s._id) return null;
+  return {
+    id: s._id.toString(),
+    userName: s.userName,
+    email: s.email,
+    source: s.source,
+    planName: s.planName,
+    planType: s.planType,
+    notes: s.notes,
+    deliveryAddress: s.deliveryAddress || {},
+    billingAddress: s.billingAddress || {},
+    shippingAddress: s.shippingAddress || {},
+    items: Array.isArray(s.items)
+      ? s.items.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          imageUrl: item.imageUrl || "",
+        }))
+      : [],
+    total: s.total,
+    currency: s.currency,
+    status: s.status,
+    paymentStatus:
+      String(s?.metadata?.razorpayStatus || "").trim() ||
+      (String(s.source || "").trim() === "razorpay" ? "paid" : ""),
+    paymentMethod: String(s?.metadata?.paymentMethod || "").trim(),
+    deliveryStatus: s.deliveryStatus,
+    createdAt: s.createdAt,
+    deliveryExpectedAt: s.deliveryExpectedAt,
+    deliveredAt: s.deliveredAt,
+  };
+}
+
 app.get("/api/admin/subscriptions", adminAuthMiddleware, async (req, res) => {
   try {
-    try {
-      await syncSubscriptionsFromRazorpay(100);
-    } catch (syncError) {
-      console.error("Razorpay subscription sync error:", syncError);
+    const shouldSyncRazorpay = String(req.query.refresh || "").trim() === "1";
+    if (shouldSyncRazorpay) {
+      try {
+        await syncSubscriptionsFromRazorpay(100);
+      } catch (syncError) {
+        console.error("Razorpay subscription sync error:", syncError);
+      }
     }
 
     const status = (req.query.status || "").trim();
     const filter = status ? { status } : {};
-    const subs = await Subscription.find(filter).sort({ createdAt: -1 }).lean();
-    res.json(
-      subs.map((s) => ({
-        id: s._id.toString(),
-        userName: s.userName,
-        email: s.email,
-        source: s.source,
-        planName: s.planName,
-        planType: s.planType,
-        notes: s.notes,
-        deliveryAddress: s.deliveryAddress || {},
-        billingAddress: s.billingAddress || {},
-        shippingAddress: s.shippingAddress || {},
-        total: s.total,
-        currency: s.currency,
-        status: s.status,
-        paymentStatus:
-          String(s?.metadata?.razorpayStatus || "").trim() ||
-          (String(s.source || "").trim() === "razorpay" ? "paid" : ""),
-        paymentMethod: String(s?.metadata?.paymentMethod || "").trim(),
-        deliveryStatus: s.deliveryStatus,
-        createdAt: s.createdAt,
-        deliveryExpectedAt: s.deliveryExpectedAt,
-        deliveredAt: s.deliveredAt,
-      }))
-    );
+    const pageRaw = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
+    const pageSizeRaw =
+      req.query.pageSize !== undefined
+        ? parseInt(String(req.query.pageSize), 10)
+        : parseInt(String(req.query.limit || "25"), 10);
+    const pageSize = Math.min(100, Math.max(1, Number.isFinite(pageSizeRaw) ? pageSizeRaw : 25));
+
+    const summaryAgg = await Subscription.aggregate([
+      { $match: filter },
+      {
+        $facet: {
+          byStatus: [{ $group: { _id: "$status", count: { $sum: 1 } } }],
+          revenue: [{ $group: { _id: null, sum: { $sum: { $ifNull: ["$total", 0] } } } }],
+          total: [{ $count: "n" }],
+        },
+      },
+    ]);
+    const facet = summaryAgg[0] || {};
+    const byStatus = {};
+    for (const row of facet.byStatus || []) {
+      if (row && row._id) byStatus[row._id] = row.count;
+    }
+    const total = facet.total?.[0]?.n ?? 0;
+    const revenue = facet.revenue?.[0]?.sum ?? 0;
+    const summary = {
+      total,
+      pending: (byStatus.pending || 0) + (byStatus.processing || 0),
+      active: byStatus.active || 0,
+      delivered: byStatus.delivered || 0,
+      cancelled: byStatus.cancelled || 0,
+      revenue,
+    };
+
+    const totalPages = total === 0 ? 1 : Math.ceil(total / pageSize);
+    const page = Math.min(pageRaw, totalPages);
+    const skip = (page - 1) * pageSize;
+
+    const subs = await Subscription.find(filter).sort({ createdAt: -1 }).skip(skip).limit(pageSize).lean();
+    const items = subs.map((s) => mapSubscriptionDocToAdminJson(s)).filter(Boolean);
+
+    res.json({
+      items,
+      page,
+      pageSize,
+      total,
+      totalPages,
+      summary,
+      syncedRazorpay: shouldSyncRazorpay,
+    });
   } catch (e) {
     res.status(500).json({ error: e.message || "Failed to load subscriptions" });
   }
@@ -1669,29 +1730,7 @@ app.patch("/api/admin/subscriptions/:id", adminAuthMiddleware, async (req, res) 
       runValidators: true,
     }).lean();
     if (!sub) return res.status(404).json({ error: "Subscription not found" });
-    res.json({
-      id: sub._id.toString(),
-      userName: sub.userName,
-      email: sub.email,
-      source: sub.source,
-      planName: sub.planName,
-      planType: sub.planType,
-      notes: sub.notes,
-      deliveryAddress: sub.deliveryAddress || {},
-      billingAddress: sub.billingAddress || {},
-      shippingAddress: sub.shippingAddress || {},
-      total: sub.total,
-      currency: sub.currency,
-      status: sub.status,
-      paymentStatus:
-        String(sub?.metadata?.razorpayStatus || "").trim() ||
-        (String(sub.source || "").trim() === "razorpay" ? "paid" : ""),
-      paymentMethod: String(sub?.metadata?.paymentMethod || "").trim(),
-      deliveryStatus: sub.deliveryStatus,
-      createdAt: sub.createdAt,
-      deliveryExpectedAt: sub.deliveryExpectedAt,
-      deliveredAt: sub.deliveredAt,
-    });
+    res.json(mapSubscriptionDocToAdminJson(sub));
   } catch (e) {
     res.status(500).json({ error: e.message || "Failed to update subscription" });
   }

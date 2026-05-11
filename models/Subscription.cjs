@@ -58,6 +58,7 @@ const subscriptionSchema = new mongoose.Schema(
 );
 
 subscriptionSchema.index({ createdAt: -1 });
+subscriptionSchema.index({ status: 1, createdAt: -1 });
 
 module.exports = mongoose.model("Subscription", subscriptionSchema);
 
