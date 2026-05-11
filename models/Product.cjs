@@ -12,6 +12,12 @@ const productSchema = new mongoose.Schema(
     description: { type: String, trim: true, default: "" },
     badge: { type: String, trim: true, default: "" }, // e.g. "-20%"
     tag: { type: String, trim: true, default: "" }, // e.g. "Pre Primary Packs"
+    /** Homepage "Latest Magazines" card: Volume · Issue · Month line (magazine category only). */
+    magazineEditionLine: { type: String, trim: true, default: "" },
+    /**
+     * Which home "Latest Magazines" card this product fills (main, junior, …). When set, overrides name/slug matching.
+     */
+    homepageMagazineSlot: { type: String, trim: true, default: "" },
     oldPrice: { type: Number, default: 0 }, // in rupees
     price: { type: Number, required: true }, // in rupees
     currency: { type: String, default: "INR" },

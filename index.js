@@ -1199,6 +1199,13 @@ app.delete("/api/admin/users/:id", adminAuthMiddleware, requireAdminRole("admin"
 
 // ----- Products (subscription packs & magazines for Subscribe page) -----
 const PRODUCT_CATEGORIES = ["pre-primary", "library", "classroom", "magazine"];
+const HOME_MAGAZINE_SLOTS = ["main", "junior", "high", "primary-i", "primary-ii"];
+
+function normalizeHomepageMagazineSlot(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  return HOME_MAGAZINE_SLOTS.includes(s) ? s : "";
+}
 
 function slugifyProduct(text) {
   return String(text || "")
@@ -1251,6 +1258,8 @@ app.get("/api/products", async (req, res) => {
         description: p.description,
         badge: p.badge,
         tag: p.tag,
+        magazineEditionLine: p.magazineEditionLine || "",
+        homepageMagazineSlot: normalizeHomepageMagazineSlot(p.homepageMagazineSlot),
         oldPrice: p.oldPrice,
         price: p.price,
         currency: p.currency,
@@ -1484,7 +1493,7 @@ app.post(
   "/api/admin/products",
   adminAuthMiddleware,
   requireAdminRole("admin"),
-  uploadProductWithGallery,
+  multerCatch(uploadProductWithGallery),
   async (req, res) => {
     try {
       const body = req.body || {};
@@ -1512,6 +1521,8 @@ app.post(
         description: String(body.description || "").trim(),
         badge: String(body.badge || "").trim(),
         tag: String(body.tag || "").trim(),
+        magazineEditionLine: String(body.magazineEditionLine || "").trim(),
+        homepageMagazineSlot: normalizeHomepageMagazineSlot(body.homepageMagazineSlot),
         price,
         oldPrice,
         currency: String(body.currency || "INR").trim() || "INR",
@@ -1531,7 +1542,7 @@ app.patch(
   "/api/admin/products/:id",
   adminAuthMiddleware,
   requireAdminRole("admin"),
-  uploadProductWithGallery,
+  multerCatch(uploadProductWithGallery),
   async (req, res) => {
     try {
       const body = req.body || {};
@@ -1552,6 +1563,12 @@ app.patch(
       if (body.description !== undefined) update.description = String(body.description || "").trim();
       if (body.badge !== undefined) update.badge = String(body.badge || "").trim();
       if (body.tag !== undefined) update.tag = String(body.tag || "").trim();
+      if (Object.prototype.hasOwnProperty.call(body, "magazineEditionLine")) {
+        update.magazineEditionLine = String(body.magazineEditionLine ?? "").trim();
+      }
+      if (Object.prototype.hasOwnProperty.call(body, "homepageMagazineSlot")) {
+        update.homepageMagazineSlot = normalizeHomepageMagazineSlot(body.homepageMagazineSlot);
+      }
       if (body.price !== undefined) update.price = Number(body.price) || 0;
       if (body.oldPrice !== undefined) update.oldPrice = Number(body.oldPrice) || 0;
       if (body.currency !== undefined) update.currency = String(body.currency || "INR").trim() || "INR";
