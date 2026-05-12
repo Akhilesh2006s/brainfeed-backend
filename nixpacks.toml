@@ -1,5 +1,9 @@
-[phases.setup]
-nixPkgs = ["nodejs-18_x"]
+# Node 18 was removed from nixpkgs (EOL). Let Nixpacks install Node 20+ via NIXPACKS_NODE_VERSION.
+# Do not pin `nodejs-18_x` in nixPkgs — it breaks Railway stage-0.
+[variables]
+NIXPACKS_NODE_VERSION = "20"
+NPM_CONFIG_PRODUCTION = "false"
+NODE_ENV = "production"
 
 [phases.install]
 cmds = ["npm install --production=false"]
@@ -9,7 +13,3 @@ cmds = []
 
 [start]
 cmd = "node index.js"
-
-[variables]
-NPM_CONFIG_PRODUCTION = "false"
-NODE_ENV = "production"
