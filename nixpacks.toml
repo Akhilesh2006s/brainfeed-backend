@@ -1,5 +1,6 @@
 [phases.setup]
-nixPkgs = ["nodejs-18_x"]
+# Node 18 was removed from nixpkgs (EOL). Use Node 22 LTS (nixpkgs attribute: nodejs_22).
+nixPkgs = ["nodejs_22"]
 
 [phases.install]
 cmds = ["npm install --production=false"]
@@ -13,3 +14,4 @@ cmd = "node index.js"
 [variables]
 NPM_CONFIG_PRODUCTION = "false"
 NODE_ENV = "production"
+NIXPACKS_NODE_VERSION = "22"
